@@ -1,7 +1,7 @@
 # http://ros.org/doc/groovy/api/catkin/html/user_guide/supposed.html
 cmake_minimum_required(VERSION 2.8.3)
 project(robotiq_2f_gripper_control)
-find_package(catkin REQUIRED COMPONENTS robotiq_ethercat roscpp rospy message_generation)
+find_package(catkin REQUIRED COMPONENTS robotiq_ethercat roscpp rospy message_generation std_msgs geometry_msgs)
 
 
 #set the default path for built executables to the "bin" directory
@@ -18,9 +18,20 @@ add_message_files(
   Robotiq2FGripper_robot_output.msg
 )
 
+add_service_files(
+  DIRECTORY
+    srv
+  FILES
+    move_robot.srv
+)
+
 catkin_python_setup()
 
-generate_messages()
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
 
 ###################################
 ## catkin specific configuration ##

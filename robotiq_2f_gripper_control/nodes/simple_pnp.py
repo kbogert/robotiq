@@ -143,7 +143,7 @@ class PickAndPlace(object):
     group.allow_replanning(True)
     group.set_planning_time(5) 
     plan = group.go(wait=True)
-    rospy.sleep(1)
+    rospy.sleep(15)
     group.stop()
    
     group.clear_pose_targets()

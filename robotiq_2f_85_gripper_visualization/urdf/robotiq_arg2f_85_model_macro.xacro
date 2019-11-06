@@ -76,7 +76,7 @@
       </collision>
     </link>
   </xacro:macro>
-
+<mass value="0.00853198276973456" />
   <xacro:macro name="inner_finger" params="prefix fingerprefix stroke">
     <link name="${prefix}${fingerprefix}_inner_finger">
       <inertial>
