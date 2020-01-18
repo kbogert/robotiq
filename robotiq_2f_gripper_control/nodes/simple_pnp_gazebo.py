@@ -13,12 +13,6 @@ from time import sleep
 from std_msgs.msg import String, Int8MultiArray
 from moveit_commander.conversions import pose_to_list
 from gripper_to_position import gripper_to_pos, reset_gripper, activate_gripper
-from gazebo_msgs.srv import (
-    SpawnModel,
-    DeleteModel,
-    SpawnModelRequest,
-    SpawnModelResponse
-)
 from geometry_msgs.msg import (
     PoseStamped,
     Pose,
@@ -35,7 +29,29 @@ import numpy
 from sawyer_irl_project.msg import onions_blocks_poses
 from gazebo_ros_link_attacher.srv import Attach, AttachRequest, AttachResponse
 
-# END_SUB_TUTORIAL
+
+joint_state_topic = ['joint_states:=/robot/joint_states']
+
+# a global class object
+limb = 'right'
+# intermediate variable needed for avoiding collisions
+step_distance = 0.05  # meters
+tip_name = "right_gripper_tip"
+target_location_x = -1
+target_location_y = -1
+# at HOME position, orientation of gripper frame w.r.t world x=0.7, y=0.7, z=0.0, w=0.0 or [ rollx: -3.1415927, pitchy: 0, yawz: -1.5707963 ]
+# (roll about an X-axis w.r.t home) / (subsequent pitch about the Y-axis) / (subsequent yaw about the Z-axis)
+rollx = 3.30
+pitchy = 0.0
+yawz = -1.57
+# use q with moveit because giving quaternion.x doesn't work.
+q = quaternion_from_euler(rollx, pitchy, yawz)
+overhead_orientation_moveit = Quaternion(
+    x=q[0],
+    y=q[1],
+    z=q[2],
+    w=q[3])
+MOTION_SAMPLE_TIME = 0.025
 
 
 def all_close(goal, actual, tolerance):
@@ -63,29 +79,6 @@ def all_close(goal, actual, tolerance):
     return True
 
 
-joint_state_topic = ['joint_states:=/robot/joint_states']
-
-# a global class object
-limb = 'right'
-# intermediate variable needed for avoiding collisions
-step_distance = 0.1  # meters
-tip_name = "right_gripper_tip"
-target_location_x = -1
-target_location_y = -1
-# at HOME position, orientation of gripper frame w.r.t world x=0.7, y=0.7, z=0.0, w=0.0 or [ rollx: -3.1415927, pitchy: 0, yawz: -1.5707963 ]
-# (roll about an X-axis w.r.t home) / (subsequent pitch about the Y-axis) / (subsequent yaw about the Z-axis)
-rollx = 3.30
-pitchy = 0.0
-yawz = -1.57
-# use q with moveit because giving quaternion.x doesn't work.
-q = quaternion_from_euler(rollx, pitchy, yawz)
-overhead_orientation_moveit = Quaternion(
-    x=q[0],
-    y=q[1],
-    z=q[2],
-    w=q[3])
-MOTION_SAMPLE_TIME = 0.025
-
 
 class PickAndPlace(object):
     def __init__(self, limb, step_distance, tip_name):
@@ -103,7 +96,10 @@ class PickAndPlace(object):
         scene = moveit_commander.PlanningSceneInterface()
 
         group_name = "right_arm"
+
         group = moveit_commander.MoveGroupCommander(group_name)
+        # See ompl_planning.yaml for a complete list
+        group.set_planner_id("RRTConnectkConfigDefault")
 
         display_trajectory_publisher = rospy.Publisher('/move_group/display_planned_path',
                                                        moveit_msgs.msg.DisplayTrajectory,
@@ -118,14 +114,13 @@ class PickAndPlace(object):
         print robot.get_current_state()
 
         # now for intera
-        print("Getting robot state... ")
-        self._rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
-        self._init_state = self._rs.state().enabled
-        print("Enabling robot... ")
-        self._rs.enable()
+        #print("Getting robot state... ")
+        #self._rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
+        #self._init_state = self._rs.state().enabled
+        #print("Enabling robot... ")
+        #self._rs.enable()
 
         # Misc variables
-        self.box_name = ''
         self.robot = robot
         self.scene = scene
         self.group = group
@@ -138,8 +133,10 @@ class PickAndPlace(object):
         self._step_distance = step_distance
         self._tip_name = tip_name
 
+    #This method uses intera to move because we assume there are no
+    #obstacles on the way to the assigned pose.
     def move_to_start(self, start_angles=None):
-        print("Moving the {0} arm to start pose...".format(self._limb_name))
+        print("Moving the {0} arm to pose...".format(self._limb_name))
         if not start_angles:
             start_angles = dict(zip(self._joint_names, [0]*7))
         self._guarded_move_to_joint_position(start_angles, timeout=2.0)
@@ -155,20 +152,20 @@ class PickAndPlace(object):
             rospy.logerr(
                 "No Joint Angles provided for move_to_joint_positions. Staying put.")
 
-    def _approach_with_leeway(self, pose):
-        approach = copy.deepcopy(pose)
-        # approach with a pose the hover-distance above the requested pose
-        approach.position.z = approach.position.z + self._step_distance
-        print "finding ik for "+str((approach.position.x, approach.position.y, approach.position.z))
-        joint_angles = self._limb.ik_request(approach, self._tip_name)
-        # print str(joint_angles)+" is output from limb.ik_request "
-        self._limb.set_joint_position_speed(0.001)
-        self._guarded_move_to_joint_position(joint_angles, timeout=1.0)
-        self._limb.set_joint_position_speed(0.1)
-        if joint_angles:
-            return True
-        else:
-            return False
+    # def _approach_with_leeway(self, pose):
+    #     approach = copy.deepcopy(pose)
+    #     # approach with a pose the hover-distance above the requested pose
+    #     approach.position.z = approach.position.z + self._step_distance
+    #     print "finding ik for "+str((approach.position.x, approach.position.y, approach.position.z))
+    #     joint_angles = self._limb.ik_request(approach, self._tip_name)
+    #     # print str(joint_angles)+" is output from limb.ik_request "
+    #     self._limb.set_joint_position_speed(0.001)
+    #     self._guarded_move_to_joint_position(joint_angles, timeout=1.0)
+    #     self._limb.set_joint_position_speed(0.1)
+    #     if joint_angles:
+    #         return True
+    #     else:
+    #         return False
 
     def _approach(self, pose):
         approach = copy.deepcopy(pose)
@@ -182,6 +179,7 @@ class PickAndPlace(object):
         else:
             return False
 
+    #This is an intera based IK method - Doesn't know about collision objects
     def _servo_to_pose(self, current_pose, pose, time=4.0, steps=400.0):
         ''' An *incredibly simple* linearly-interpolated Cartesian move '''
         r = rospy.Rate(1/(time/steps))  # Defaults to 100Hz command rate
@@ -230,57 +228,6 @@ class PickAndPlace(object):
         rospy.sleep(1.0)
         return True
 
-    #Why do we have the exact same code as _servo to pose under this????
-    def moveit_servo_to_pose(self, current_pose, pose, time=4.0, steps=400.0):
-        ''' An *incredibly simple* linearly-interpolated Cartesian move '''
-        r = rospy.Rate(1/(time/steps))  # Defaults to 100Hz command rate
-        # current_pose = self.group.get_current_pose().pose
-        ik_delta = Pose()
-        ik_delta.position.x = (
-            current_pose.position.x - pose.position.x) / steps
-        ik_delta.position.y = (
-            current_pose.position.y - pose.position.y) / steps
-        ik_delta.position.z = (
-            current_pose.position.x - pose.position.z) / steps
-        ik_delta.orientation.x = (
-            current_pose.orientation.x - pose.orientation.x) / steps
-        ik_delta.orientation.y = (
-            current_pose.orientation.y - pose.orientation.y) / steps
-        ik_delta.orientation.z = (
-            current_pose.orientation.z - pose.orientation.z) / steps
-        ik_delta.orientation.w = (
-            current_pose.orientation.w - pose.orientation.w) / steps
-        for d in range(int(steps), -1, -1):
-            if rospy.is_shutdown():
-                return
-            ik_step = Pose()
-            ik_step.position.x = d*ik_delta.position.x + pose.position.x
-            ik_step.position.y = d*ik_delta.position.y + pose.position.y
-            ik_step.position.z = d*ik_delta.position.z + pose.position.z
-            ik_step.orientation.x = d*ik_delta.orientation.x + pose.orientation.x
-            ik_step.orientation.y = d*ik_delta.orientation.y + pose.orientation.y
-            ik_step.orientation.z = d*ik_delta.orientation.z + pose.orientation.z
-            ik_step.orientation.w = d*ik_delta.orientation.w + pose.orientation.w
-            flag = False
-            while not flag:
-                self.go_to_pose_goal(q[0], q[1], q[2], q[3],
-                                     ik_step.position.x, ik_step.position.y, ik_step.position.z)
-                # self.go_to_pose_goal(ik_step.orientation.x,ik_step.orientation.y,
-                #   ik_step.orientation.z,ik_step.orientation.w,
-                # ik_step.position.x,ik_step.position.y,ik_step.position.z)
-                # sleep(1.0)
-                current_pose_step = self.group.get_current_pose().pose
-                flag = (not all_close(ik_step, current_pose_step, 0.01))
-                r.sleep()
-            # print("These are the joint angles I got: ",joint_angles)
-            # if joint_angles:
-            #     self._limb.set_joint_positions(joint_angles)
-            # else:
-            #     rospy.logerr("No Joint Angles provided for move_to_joint_positions. Staying put.")
-            # r.sleep()
-        rospy.sleep(1.0)
-        return True
-
     def go_to_joint_goal(self, angles, allow_replanning=True, planning_time=5.0,
                          goal_tol=0.02, orientation_tol=0.02):
 
@@ -307,8 +254,8 @@ class PickAndPlace(object):
         """
         group = self.group
         # Allow some leeway in position(meters) and orientation (radians)
-        group.set_goal_position_tolerance(0.01)
-        group.set_goal_orientation_tolerance(0.02)
+        group.set_goal_position_tolerance(0.001)
+        group.set_goal_orientation_tolerance(0.03)
 
         pose_goal = geometry_msgs.msg.Pose()
         pose_goal.orientation.x = ox
@@ -330,6 +277,113 @@ class PickAndPlace(object):
 
         current_pose = self.group.get_current_pose().pose
         return all_close(pose_goal, current_pose, 0.02)
+    
+    def wait_for_state_update(box_name, scene, box_is_known = False, box_is_attached = False, timeout = 4):
+        start = rospy.get_time()
+        seconds = rospy.get_time()
+        while (seconds - start < timeout) and not rospy.is_shutdown():
+            # Test if the box is in attached objects
+            attached_objects = scene.get_attached_objects([box_name])
+            is_attached = len(attached_objects.keys()) > 0
+
+            # Test if the box is in the scene.
+            # Note that attaching the box will remove it from known_objects
+            is_known = box_name in scene.get_known_object_names()
+
+            # Test if we are in the expected state
+            if (box_is_attached == is_attached) and (box_is_known == is_known):
+                return True
+
+            # Sleep so that we give other threads time on the processor
+            rospy.sleep(0.1)
+            seconds = rospy.get_time()
+
+        # If we exited the while loop without returning then we timed out
+        return False
+
+
+    def dip(self):
+
+        global q, target_location_x, target_location_y
+        while target_location_x == -100:
+            sleep(0.05)
+        current_pose = self.group.get_current_pose().pose
+        allow_replanning = True
+        planning_time = MOTION_SAMPLE_TIME*2
+        if current_pose.position.y >= target_location_y - 0.028 and current_pose.position.y <= target_location_y + 0.028:
+            dip = self.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x+0.01,
+                                    target_location_y + 0.02, #accounting for tolerance error
+                                    current_pose.position.z - 0.15, #This is where we dip
+                                    allow_replanning, planning_time)
+            rospy.sleep(0.1)
+            
+            print "Successfully dipped! z pos: ", current_pose.position.z
+            
+            box_pose = geometry_msgs.msg.PoseStamped()
+            box_pose.header.frame_id = "right_l6"
+            box_pose.pose.orientation.w = 1.0
+            # box_pose.pose.position.x = target_location_x
+            # box_pose.pose.position.y = target_location_y
+            box_pose.pose.position.z = current_pose.position.z + 0.005
+            box_name = "good_onion_0"
+            self.scene.add_box(box_name, box_pose, size=(0.065, 0.065, 0.065))
+            
+            grasping_group = 'right_arm'
+            group = self.group
+            robot = self.robot
+            touch_links = robot.get_link_names(group=grasping_group)
+            self.scene.attach_box(self.eef_link, box_name, touch_links = touch_links)
+            # rospy.loginfo(self.wait_for_state_update(box_name, self.scene, box_is_attached=True, box_is_known=False))
+            return True
+        else:
+            rospy.sleep(0.05)
+            print "Current position of gripper (y,z): ", current_pose.position.y, current_pose.position.z
+            print "Current position of onion in (y): ", target_location_y
+            dip = self.dip()
+        return dip
+        
+
+    def waitToPick(self):
+
+        global q, target_location_x, target_location_y
+        while target_location_x == -100:
+            sleep(0.05)
+        current_pose = self.group.get_current_pose().pose
+        allow_replanning = True
+        planning_time = 5
+        waiting = self.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x+0.01,
+                                    current_pose.position.y, current_pose.position.z,
+                                    allow_replanning, planning_time)
+        rospy.sleep(0.05)
+        dip = self.dip()
+        print "dip status: ", dip 
+        # dip = True
+        return dip
+
+    def liftgripper(self):
+        # approx centers of onions at 0.82, width of onion is 0.038 m. table is at 0.78
+        # length of gripper is 0.163 m The gripper should not go lower than
+        # (height_z of table w.r.t base+gripper-height/2+tolerance) = 0.78-0.93+0.08+0.01=-0.24
+        # pnp._limb.endpoint_pose returns {'position': (x, y, z), 'orientation': (x, y, z, w)}
+        # moving from z=-.02 to z=-0.1
+        print "Attempting to lift gripper"
+        global q, target_location_x, target_location_y
+        while target_location_x == -100:
+            sleep(0.05)
+        current_pose = self.group.get_current_pose().pose
+        allow_replanning = True
+        planning_time = 5
+        i = 0
+        while i < 0.6:
+            print "Current z pose: ",current_pose.position.z
+            waiting = self.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x,
+                                    current_pose.position.y, current_pose.position.z + i,
+                                    allow_replanning, planning_time)
+            i = i + 0.2
+            rospy.sleep(0.1)
+            print "Updated gripper z value is: ",current_pose.position.z
+
+        return True
 
     def display_trajectory(self, plan):
         """
@@ -344,39 +398,43 @@ class PickAndPlace(object):
         display_trajectory.trajectory.append(plan)
 
         display_trajectory_publisher.publish(display_trajectory)
+        
+############################################## END OF CLASS ##################################################
 
-
-############################## Need a global class object ###########################################
+#Creating a global class object pnp to access all the methods and attributes
 pnp = PickAndPlace(limb, step_distance, tip_name)
 
-def handle_move_sawyer(req_move_robot):
-    # "home","bin","hover","lowergripper","lookNrotate","roll"
-    # location - (x,y)
-    target_location_x = req_move_robot.location.x
-    target_location_y = req_move_robot.location.y
-    argument = req_move_robot.primitive
-    switcher = {
-        "home": goto_home,
-        "bin": goto_bin,
-        "hover": hover,
-        "lowergripper": lowergripper,
-        "lookNrotate": lookNrotate,
-        "roll": roll
-    }
-    # Get the function from switcher dictionary
-    func = switcher.get(
-        argument, lambda: "Invalid input to move_sawyer service")
-    if argument not in switcher.keys():
-        return move_robotResponse(False)
-    # Execute the function
-    result = func()
-    if result == True:
-        return move_robotResponse(True)
-    return move_robotResponse(False)
+
+# def handle_move_sawyer(req_move_robot):
+#     # "home","bin","hover","lowergripper","lookNrotate","roll"
+#     # location - (x,y)
+#     target_location_x = req_move_robot.location.x
+#     target_location_y = req_move_robot.location.y
+#     argument = req_move_robot.primitive
+#     switcher = {
+#         "home": goto_home,
+#         "bin": goto_bin,
+#         "hover": hover,
+#         "lowergripper": lowergripper,
+#         "lookNrotate": lookNrotate,
+#         "roll": roll
+#     }
+#     # Get the function from switcher dictionary
+#     func = switcher.get(
+#         argument, lambda: "Invalid input to move_sawyer service")
+#     if argument not in switcher.keys():
+#         return move_robotResponse(False)
+#     # Execute the function
+#     result = func()
+#     if result == True:
+#         return move_robotResponse(True)
+#     return move_robotResponse(False)
 
 
-def goto_home(tolerance=0.1, goal_tol=0.02,
-              orientation_tol=0.02):
+#This method uses intera to move because we assume there are no
+#obstacles on the way to the start pose.
+def goto_home(tolerance=0.01, goal_tol=0.02, orientation_tol=0.02):
+    
     global pnp
 
     home_joint_angles = [-0.041662954890248294, -1.0258291091425074, 0.0293680414401436,
@@ -391,6 +449,7 @@ def goto_home(tolerance=0.1, goal_tol=0.02,
                     'right_j4': -0.06703022873354225,
                     'right_j5': 0.3968371433926965,
                     'right_j6': 1.7659649178699421}
+    # 0.7716502133436203, -0.25253308083711357, -0.9156571119870254, 1.6775039734444164, 2.969104448028304, -2.2600790124759307, -2.608939978894689
     current_joints = pnp.group.get_current_joint_values()
     tol = tolerance
     diff = abs(joint_angles['right_j0']-current_joints[0]) > tol or \
@@ -404,7 +463,7 @@ def goto_home(tolerance=0.1, goal_tol=0.02,
     while diff:
         pnp.go_to_joint_goal(home_joint_angles, True, 5.0, goal_tol=goal_tol,
                              orientation_tol=orientation_tol)
-        sleep(5.0)
+        sleep(0.1)
         # measure after movement
         current_joints = pnp.group.get_current_joint_values()
 
@@ -417,7 +476,7 @@ def goto_home(tolerance=0.1, goal_tol=0.02,
             abs(joint_angles['right_j6']-current_joints[6]) > tol
         if diff:
             pnp.move_to_start(joint_angles)
-            sleep(5.0)
+            sleep(0.1)
 
         print "diff:"+str(diff)
 
@@ -428,74 +487,6 @@ def goto_home(tolerance=0.1, goal_tol=0.02,
     # else:
     #   return True
 
-
-def hover(hovertime=3, displacement_for_picking=0.03):
-    global q, pnp, target_location_x, target_location_y
-    while target_location_x == -100:
-        sleep(0.05)
-
-    # pnp._limb.set_joint_position_speed(40)
-    allow_replanning = False
-    planning_time = MOTION_SAMPLE_TIME
-    reached = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x,
-                                  target_location_y+displacement_for_picking+0.01, 0.14,
-                                  allow_replanning, planning_time)
-    rospy.sleep(0.2)
-
-    allow_replanning = False
-    planning_time = MOTION_SAMPLE_TIME/2
-    t = 0
-    count = int(hovertime / MOTION_SAMPLE_TIME)
-    for t in range(0, count):
-        # joint_angles = pnp._limb.ik_request(Pose(Point(x=target_location_x,y=target_location_y,z=0.12),\
-        #   Quaternion(x=q[0],y=q[1],z=q[2],w=q[3])), pnp._tip_name)
-        # pnp._guarded_move_to_joint_position(joint_angles,timeout=MOTION_SAMPLE_TIME)
-        reached = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x,
-                                      target_location_y+displacement_for_picking, 0.14,
-                                      allow_replanning, planning_time)
-        rospy.sleep(MOTION_SAMPLE_TIME)
-
-    return True
-
-
-def lowergripper(displacement_for_picking=0.01):
-    # approx centers of onions at 0.82, width of onion is 0.038 m. table is at 0.78
-    # length of gripper is 0.163 m The gripper should not go lower than
-    # (height_z of table w.r.t base+gripper-height/2+tolerance) = 0.78-0.93+0.08+0.01=-0.24
-    # pnp._limb.endpoint_pose returns {'position': (x, y, z), 'orientation': (x, y, z, w)}
-    # moving from z=-.02 to z=-0.1
-    global overhead_orientation, pnp, target_location_x, target_location_y
-    z_array = [0.1, 0.07, 0.05]
-
-    allow_replanning = False
-    planning_time = MOTION_SAMPLE_TIME
-    for z in z_array:
-        # calculating how much is base frame off
-        reached = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x-0.02,
-                                      target_location_y+displacement_for_picking, z,
-                                      allow_replanning, planning_time)
-        print "at z="+str(z)
-    return True
-
-
-def liftgripper(displacement_for_picking=0.02):
-    # approx centers of onions at 0.82, width of onion is 0.038 m. table is at 0.78
-    # length of gripper is 0.163 m The gripper should not go lower than
-    # (height_z of table w.r.t base+gripper-height/2+tolerance) = 0.78-0.93+0.08+0.01=-0.24
-    # pnp._limb.endpoint_pose returns {'position': (x, y, z), 'orientation': (x, y, z, w)}
-    # moving from z=-.02 to z=-0.1
-
-    global overhead_orientation, pnp, target_location_x, target_location_y
-    z_array = [0.07, 0.1, 0.14]
-
-    allow_replanning = False
-    planning_time = MOTION_SAMPLE_TIME
-    for z in z_array:
-        reached = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x-0.02,
-                                      target_location_y+displacement_for_picking, z,
-                                      allow_replanning, planning_time)
-        print "at z="+str(z)
-    return True
 
 
 def lookNrotate():
@@ -568,18 +559,83 @@ def lookNrotate():
 
     return True
 
+def view(tolerance=0.01, goal_tol=0.02, orientation_tol=0.02):
+    
+    global pnp
 
-def goto_bin():
-    global overhead_orientation, pnp
+    home_joint_angles = [-0.041662954890248294, -1.0258291091425074, 0.0293680414401436,
+                         2.17518162913313, -0.06703022873354225, 0.3968371433926965, 1.7659649178699421]
+    # pnp.go_to_joint_goal(home_joint_angles,True,5.0)
+    # sleep(10.0)
+
+    joint_angles = {'right_j0': 0.7716502133436203,
+                    'right_j1': -0.25253308083711357,
+                    'right_j2': -0.9156571119870254,
+                    'right_j3': 1.6775039734444164,
+                    'right_j4': 2.969104448028304,
+                    'right_j5': -2.2600790124759307,
+                    'right_j6': -2.608939978894689}
+    # 0.7716502133436203, -0.25253308083711357, -0.9156571119870254, 1.6775039734444164, 2.969104448028304, -2.2600790124759307, -2.608939978894689
+    current_joints = pnp.group.get_current_joint_values()
+    tol = tolerance
+    diff = abs(joint_angles['right_j0']-current_joints[0]) > tol or \
+        abs(joint_angles['right_j1']-current_joints[1]) > tol or \
+        abs(joint_angles['right_j2']-current_joints[2]) > tol or \
+        abs(joint_angles['right_j3']-current_joints[3]) > tol or \
+        abs(joint_angles['right_j4']-current_joints[4]) > tol or \
+        abs(joint_angles['right_j5']-current_joints[5]) > tol or \
+        abs(joint_angles['right_j6']-current_joints[6]) > tol
+
+    while diff:
+        pnp.go_to_joint_goal(home_joint_angles, True, 5.0, goal_tol=goal_tol,
+                             orientation_tol=orientation_tol)
+        sleep(5.0)
+        # measure after movement
+        current_joints = pnp.group.get_current_joint_values()
+
+        diff = abs(joint_angles['right_j0']-current_joints[0]) > tol or \
+            abs(joint_angles['right_j1']-current_joints[1]) > tol or \
+            abs(joint_angles['right_j2']-current_joints[2]) > tol or \
+            abs(joint_angles['right_j3']-current_joints[3]) > tol or \
+            abs(joint_angles['right_j4']-current_joints[4]) > tol or \
+            abs(joint_angles['right_j5']-current_joints[5]) > tol or \
+            abs(joint_angles['right_j6']-current_joints[6]) > tol
+        if diff:
+            pnp.move_to_start(joint_angles)
+            sleep(0.1)
+
+        print "diff:"+str(diff)
+
+    print("reached viewpoint")
+    return True
+
+
+
+def goto_bin(tolerance=0.1):
+#0.0007738188961337045, 0.9942022319650565, -0.6642366352730953, 0.46938807849915687, 1.5498016537213086, -0.8777244285593966, 0.8579252090846943, 2.18012354574336
+
+    global overhead_orientation_moveit, pnp, target_location_x, target_location_y
     allow_replanning = True
-    planning_time = MOTION_SAMPLE_TIME
-    reached = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], 0.1-0.02, 0.6, 0.03,
-                                  allow_replanning, planning_time)
+    planning_time = 10
+    reached = False
+    reached_waypoint = False
+    current_pose = pnp.group.get_current_pose().pose
+    height = current_pose.position.z
+    print "Attempting to reach the bin"
+    #while 0.45 < current_pose.position.x < 0.5 or 0.48 < current_pose.position.y < 0.52:
+    reached_waypoint = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], 0.482810140925, 0.509723584575, 0,
+                                    allow_replanning, planning_time)
+    rospy.sleep(0.1)
+    # while current_pose.position.x - 0.1 >= tolerance:
+    reached = pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], 0.1, 0.6, 0,
+                                allow_replanning, planning_time)
+    rospy.sleep(0.1)
+    
+    current_pose = pnp.group.get_current_pose().pose
+    print "Current gripper pose: ", current_pose
+    print "Reached bin: ", reached
+    
     return reached
-    # pose=Pose(
-    #     position=Point(x=0.1, y=0.6, z=-0.15),
-    #     orientation=overhead_orientation)
-    # return pnp._approach(pose)
 
 
 def roll():
@@ -641,22 +697,22 @@ def roll():
 
         pass
 
-    if result:
-        pose = Pose(
-            position=Point(x=0.75, y=-0.31, z=target_location_z),
-            orientation=new_orientation)
-        pnp._approach(pose)
+    # if result:
+    #     pose = Pose(
+    #         position=Point(x=0.75, y=-0.31, z=target_location_z),
+    #         orientation=new_orientation)
+    #     pnp._approach(pose)
 
-        # give enough space to make gripper change orientation without hitting
-        pose = Pose(
-            position=Point(x=0.75, y=-0.31, z=target_location_z+0.2),
-            orientation=new_orientation)
-        pnp._approach(pose)
-        pose = Pose(
-            position=Point(x=0.75, y=-0.31, z=target_location_z+0.2),
-            orientation=overhead_orientation)
-        res = pnp._approach(pose)
-        return res
+    #     # give enough space to make gripper change orientation without hitting
+    #     pose = Pose(
+    #         position=Point(x=0.75, y=-0.31, z=target_location_z+0.2),
+    #         orientation=new_orientation)
+    #     pnp._approach(pose)
+    #     pose = Pose(
+    #         position=Point(x=0.75, y=-0.31, z=target_location_z+0.2),
+    #         orientation=overhead_orientation_moveit)
+    #     res = pnp._approach(pose)
+    #     return res
 
     return False
 
@@ -677,73 +733,71 @@ target_location_y = -100
 onion_index = 0
 req = AttachRequest()
 
-
 def callback_modelname(color_indices_msg):
     global req, onion_index
     if (color_indices_msg.data[onion_index] == 0):
         req.model_name_1 = "good_onion_" + str(onion_index)
+        print "Onion name set in IF as: ", req.model_name_1 
     else:
         req.model_name_1 = "bad_onion_" + str(onion_index)
+        print "Onion name set in ELSE as: ", req.model_name_1 
     return
+
 
 
 def main():
     try:
 
-        # spawn_srv = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)    # SPAWNING CUBE OBJECT IN GAZEBO
-        # rospy.loginfo("Waiting for /gazebo/spawn_sdf_model service...")
-        # spawn_srv.wait_for_service()
-        # rospy.loginfo("Connected to service!")
-
-        global target_location_x, target_location_y, pnp
-        hovertime = 1.0
+        global target_location_x, target_location_y, pnp, req
         rospy.Subscriber("onions_blocks_poses",
                          onions_blocks_poses, callback_poses)
-        rospy.Subscriber("current_onions_blocks",
-                         Int8MultiArray, callback_modelname)
+        callback_modelname(rospy.wait_for_message("current_onions_blocks", 
+                            Int8MultiArray)) #This will only listen once until it hears something,
+                                             # this may cause trouble later, watch out!
         # attach and detach service
         attach_srv = rospy.ServiceProxy('/link_attacher_node/attach', Attach)
         attach_srv.wait_for_service()
         detach_srv = rospy.ServiceProxy('/link_attacher_node/detach', Attach)
         detach_srv.wait_for_service()
-
         req.link_name_1 = "base_link"
         req.model_name_2 = "sawyer"
         req.link_name_2 = "right_l6"
+        print "(model_1,link_1,model_2,link_2)", req.model_name_1,req.link_name_1,req.model_name_2,req.link_name_2
 
-        detach_srv.call(req)
-        # os.system('rosrun gazebo_ros_link_attacher detach.py')
-        # print "liftgripper()"
-        # liftgripper()
-
-        print "goto_home()"
-        goto_home(0.4, goal_tol=0.1,
-                  orientation_tol=0.1)
-        # sleep(10.0)
-        # print "current_pose "
-        # print pnp.group.get_current_pose().pose
-        # sleep(2.0)
-
-        ## PICKING ##
-        print "target_location_x,target_location_y"+str((target_location_x, target_location_y))
-        print "hover()"
-        success = hover(hovertime)
-        # sleep(60.0)
-        # exit(0)
-        print "lowergripper()"
         reset_gripper()
         activate_gripper()
         gripper_to_pos(0, 60, 200, False)    # OPEN GRIPPER
-        lowergripper()
-        # sleep(5.0)
-        attach_srv.call(req)
-        # os.system('rosrun gazebo_ros_link_attacher attach.py')
-        sleep(2.0)
+        print "goto_home()"
+        goto_home(0.3, goal_tol=0.01, orientation_tol=0.1)
 
-        print "liftgripper()"
-        liftgripper()
-        sleep(2.0)
-        exit(0)
+        ##############################################
+        status = pnp.waitToPick()
+        print "status: ", status
+        #status = True
+        if(status):
+            attach_srv.call(req)
+            sleep(0.1)
+            pnp.liftgripper()
+            sleep(0.1)
+            view(0.3)
+            sleep(0.1)
+            # goto_home(0.3)
+            # sleep(0.1)
+            goto_bin()
+            sleep(0.1)
+            # detach_srv.call(req)
+            print "Worked like a charm!"
+        ##############################################
+
+        # print "lowergripper()"
+        # lowergripper()
+        # attach_srv.call(req)
+        # sleep(2.0)
+        # print "liftgripper()"
+        # liftgripper()
+        # sleep(2.0)
+        # exit(0)
+
         ## INPECTION ##
         # print "lookNrotate()"
         # lookNrotate()
@@ -754,133 +808,21 @@ def main():
         # goto_bin()
         # sleep(2.0)
 
-        detach_srv.call(req)
+        #detach_srv.call(req)
 
         ## ROLLING ##
 
         # print "hover() on leftmost onion"
         # hover()
         # sleep(2.0)
-        print "roll()"
-        roll()
-        sleep(50.0)
-        exit(0)
-
-        # rospy.spin()
-
-        s = rospy.Service('move_sawyer', move_robot, handle_move_sawyer)
-        print "Ready to move sawyer."
-
-        # Starting Joint angles for right arm
-
-        # spawn_srv = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)    # SPAWNING CUBE OBJECT IN GAZEBO
-        # rospy.loginfo("Waiting for /gazebo/spawn_sdf_model service...")
-        # spawn_srv.wait_for_service()
-        # rospy.loginfo("Connected to service!")
-        rollx = 3.14
-        pitchy = 0.0
-        yawz = -1.57
-        q = quaternion_from_euler(rollx, pitchy, yawz)
-        overhead_orientation_moveit = Quaternion(
-            x=q[0],
-            y=q[1],
-            z=q[2],
-            w=q[3])
-        #q=[ 0.707388, 0.706825, -0.0005629, 0.0005633 ]
-        # # Spawn object 1
-        # rospy.loginfo("Spawning cube1")
-        # req1 = create_cube_request("cube1",
-        #                           0.705, 0.0, 0.80,  # position
-        #                           0.0, 0.0, 0.0,  # rotation
-        #                           0.0762, 0.0762, 0.0762)  # size
-
-        # # Move to the desired starting angles
-        # print("Running. Ctrl-c to quit")
-        # pnp.move_to_start(starting_joint_angles)
-
-        # rospy.sleep(1)
-
-        # spawn_srv.call(req1)  #Spawn cube now
-
-        reset_gripper()
-
-        activate_gripper()
-
-        # 255 = closed, 0 = open
-        gripper_to_pos(0, 60, 200, False)    # OPEN GRIPPER
-
-        pnp.go_to_pose_goal(q[0], q[1],
-                            q[2], q[3],
-                            0.75, 0.0, 0.0)
-        sleep(10.0)
-        pnp.go_to_pose_goal(q[0], q[1],
-                            q[2], q[3],
-                            0.0, 0.5, 0.0)
-        sleep(10.0)
-        pnp.go_to_pose_goal(q[0], q[1],
-                            q[2], q[3],
-                            0.0, 0.0, 0.3)
-        sleep(10.0)
-        pnp.go_to_pose_goal(q[0], q[1],
-                            q[2], q[3],
-                            0.75, 0.0, 0.0)
-        sleep(10.0)
-
-        print("WAYPOINT 1 ")
-        pnp.go_to_pose_goal(q[0], q[1],
-                            q[2], q[3],
-                            0.75, 0.0, 0.15)
-        # pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 1 (HOVER POS)
-        #                          0.665, 0.0, 0.15)
-
-        sleep(5.0)
-        print("WAYPOINT 2 ")
-        pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 2 (HOVER POS)
-                            0.75, 0.0, 0.002)
-
-        sleep(5.0)
-        print("WAYPOINT 3 ")
-        pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 3 (PLUNGE AND PICK)
-                            0.75, 0.0, -0.001)
-        sleep(5.0)
-        gripper_to_pos(50, 60, 200, False)    # GRIPPER TO POSITION 50
-
-        # ATTACH CUBE AND SAWYER EEF
-        os.system('rosrun gazebo_ros_link_attacher attach.py')
-
-        sleep(1.0)
-        print("WAYPOINT 4 ")
-        pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 4 (TRAVEL TO PLACE DESTINATION)
-                            0.75, 0.04, 0.15)
-
-        sleep(5.0)
-        print("WAYPOINT 5 ")
-        pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 5 (TRAVEL TO PLACE DESTINATION)
-                            0.75, 0.5, 0.02)
-
-        sleep(5.0)
-        print("WAYPOINT 6")
-        pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 6 (PLACE)
-                            0.75, 0.5, -0.055)
-
-        # DETACH CUBE AND SAWYER EEF
-        os.system('rosrun gazebo_ros_link_attacher detach.py')
-
-        gripper_to_pos(0, 60, 200, False)    # OPEN GRIPPER
-
-        sleep(1.0)
-        print("WAYPOINT 6")
-        pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 7 (RETURN TO HOVER POS)
-                            0.75, 0.5, 0.12)
-        sleep(5.0)
-        rospy.sleep(1.0)
-        delete_gazebo_models()
+        # print "roll()"
+        # roll()
+        # sleep(50.0)
+        # exit(0)
 
     except rospy.ROSInterruptException:
-        delete_gazebo_models()
         return
     except KeyboardInterrupt:
-        delete_gazebo_models()
         return
 
 
@@ -888,4 +830,4 @@ if __name__ == '__main__':
     try:
         main()
     except rospy.ROSInterruptException:
-        pass
+        print "Main function not found! WTH dude!"
