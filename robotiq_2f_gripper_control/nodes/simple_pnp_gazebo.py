@@ -538,16 +538,17 @@ target_location_x = -100
 target_location_y = -100
 onion_index = 0
 req = AttachRequest()
+initialized = False
 
 def callback_modelname(color_indices_msg):
-    global req, onion_index
+    global req, onion_index, initialized
     if (color_indices_msg.data[onion_index] == 0):
         req.model_name_1 = "good_onion_" + str(onion_index)
         print "Onion name set in IF as: ", req.model_name_1 
     else:
         req.model_name_1 = "bad_onion_" + str(onion_index)
         print "Onion name set in ELSE as: ", req.model_name_1 
-    return
+    initialized = True
 
 ##################################### Now to Main ##################################################
 
@@ -555,12 +556,12 @@ def main():
     
     try:
 
-        global target_location_x, target_location_y, pnp, req
+        global target_location_x, target_location_y, pnp, req, initialized
         rospy.Subscriber("onions_blocks_poses",
                          onions_blocks_poses, callback_poses)
-        # rospy.Subscriber("current_onions_blocks", Int8MultiArray, callback_modelname)
+        rospy.Subscriber("current_onions_blocks", Int8MultiArray, callback_modelname)
         ####################################################################################
-        callback_modelname(rospy.wait_for_message("current_onions_blocks", Int8MultiArray)) 
+#        callback_modelname(rospy.wait_for_message("current_onions_blocks", Int8MultiArray)) 
         # This method will only listen once until it hears something,
         # this may cause trouble later, watch out!
         ####################################################################################
@@ -573,6 +574,8 @@ def main():
         req.link_name_1 = "base_link"
         req.model_name_2 = "sawyer"
         req.link_name_2 = "right_l6"
+        while not initialized:
+            rospy.sleep(0.25)
         print "(model_1,link_1,model_2,link_2)", req.model_name_1,req.link_name_1,req.model_name_2,req.link_name_2
 
         reset_gripper()
