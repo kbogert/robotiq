@@ -143,6 +143,7 @@ class PickAndPlace(object):
     group.allow_replanning(True)
     group.set_planning_time(5) 
     plan = group.go(wait=True)
+    print("I reached here!")
     rospy.sleep(15)
     group.stop()
    
@@ -222,9 +223,9 @@ def main():
 
     gripper_to_pos(50, 60, 200, False)    # GRIPPER TO POSITION 50
     
-    os.system('rosrun gazebo_ros_link_attacher attach.py')    # ATTACH CUBE AND SAWYER EEF
+    # os.system('rosrun gazebo_ros_link_attacher attach.py')    # ATTACH CUBE AND SAWYER EEF
 
-    sleep(1.0)
+    # sleep(1.0)
 
     pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 4 (TRAVEL TO PLACE DESTINATION)
                              0.665, 0.04, 0.15)
@@ -239,7 +240,7 @@ def main():
     pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 6 (PLACE)
                              0.665, 0.5, -0.055)
 
-    os.system('rosrun gazebo_ros_link_attacher detach.py')    # DETACH CUBE AND SAWYER EEF
+    # os.system('rosrun gazebo_ros_link_attacher detach.py')    # DETACH CUBE AND SAWYER EEF
 
     gripper_to_pos(0, 60, 200, False)    # OPEN GRIPPER
 
