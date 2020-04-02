@@ -157,7 +157,7 @@ class PickAndPlace(object):
         ''' An *incredibly simple* linearly-interpolated Cartesian move '''
         r = rospy.Rate(1/(time/steps))  # Defaults to 100Hz command rate
         # current_pose = self._limb.endpoint_pose()
-        print "current_pose: "+str((current_pose['position'].x, current_pose['position'].y, current_pose['position'].z))
+        print "current_pose: " + str((current_pose['position'].x, current_pose['position'].y, current_pose['position'].z))
         ik_delta = Pose()
         ik_delta.position.x = (
             current_pose['position'].x - pose.position.x) / steps
