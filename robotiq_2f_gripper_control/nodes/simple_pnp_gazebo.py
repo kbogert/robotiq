@@ -650,15 +650,19 @@ num_onions = 0
 flag = False
 
 def callback_poses(onions_poses_msg):
-    global target_location_x, target_location_y, target_location_z
-    while not bad_onions:
-        rospy.sleep(0.1)
-    current_onions_x = onions_poses_msg.x
-    current_onions_y = onions_poses_msg.y
-    current_onions_z = onions_poses_msg.z
-    target_location_x = current_onions_x[bad_onions[bad_onion_index]]
-    target_location_y = current_onions_y[bad_onions[bad_onion_index]]
-    target_location_z = current_onions_z[bad_onions[bad_onion_index]]
+    global target_location_x, target_location_y, target_location_z, onion_index, num_onions
+    # while not bad_onions:
+    #     rospy.sleep(0.1)
+    if(onion_index == - 1):
+        print("Reached the end of the list")
+        return
+    else:
+        current_onions_x = onions_poses_msg.x
+        current_onions_y = onions_poses_msg.y
+        current_onions_z = onions_poses_msg.z
+        target_location_x = current_onions_x[onion_index]
+        target_location_y = current_onions_y[onion_index]
+        target_location_z = current_onions_z[onion_index]    
     # print "target_location_x,target_location_y"+str((target_location_x,target_location_y))
     return
 
@@ -713,10 +717,18 @@ def callback_onion_pick(color_indices_msg):
             rospy.sleep(0.01)
             detach_srv.call(req)
             num_onions = num_onions - 1
-            if(num_onions > 0):
-                bad_onion_index = bad_onion_index + 1
+            if onion_index == num_onions - 1:
+                onion_index = -1
+                # bad_onion_index = 0
+                pnp.goto_home(0.3, goal_tol=0.01, orientation_tol=0.1)
+                print("Reached the end of onion list")
+                return
+            else:
+                # bad_onion_index = bad_onion_index + 1
+                onion_index = onion_index + 1
         ##############################################
     else:
+        print("Reached the end of onion list")
         return
 
 def callback_onion_roll(color_indices_msg):
@@ -766,11 +778,18 @@ def callback_onion_roll(color_indices_msg):
             detach_srv.call(req)
 
         if onion_index == num_onions - 1:
-            onion_index = 0
-            bad_onion_index = 0
+            # onion_index = 0
+            # bad_onion_index = 0
+            pnp.goto_home(0.3, goal_tol=0.01, orientation_tol=0.1)
+            print("Reached the end of onion list")
+            return
         else:
-            bad_onion_index = bad_onion_index + 1
+            # bad_onion_index = bad_onion_index + 1
+            onion_index = onion_index + 1
         ##############################################
+    else:
+        print("Reached the end of onion list")
+        return
 
 
 ##################################### Now to Main ##################################################
