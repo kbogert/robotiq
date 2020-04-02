@@ -88,7 +88,7 @@ class PickAndPlace(object):
 
         group_names = robot.get_group_names()
 
-        print robot.get_current_state()
+        print(robot.get_current_state())
 
         # now for intera
         #print("Getting robot state... ")
