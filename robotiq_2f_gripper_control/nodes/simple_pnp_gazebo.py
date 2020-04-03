@@ -650,28 +650,36 @@ num_onions = 0
 flag = False
 
 def callback_poses(onions_poses_msg):
-    global target_location_x, target_location_y, target_location_z, onion_index, num_onions
-    # while not bad_onions:
-    #     rospy.sleep(0.1)
-    if(onion_index == - 1):
-        print("Reached the end of the list")
+    global req, target_location_x, target_location_y, target_location_z, onion_index, num_onions
+    if "good" in req.model_name_1:
+        # print("I'm waiting for a bad onion!")
+        return
+    if(onion_index == -1):
+        print("No more onions to sort!")
         return
     else:
-        current_onions_x = onions_poses_msg.x
-        current_onions_y = onions_poses_msg.y
-        current_onions_z = onions_poses_msg.z
-        target_location_x = current_onions_x[onion_index]
-        target_location_y = current_onions_y[onion_index]
-        target_location_z = current_onions_z[onion_index]    
+        if(onion_index == len(onions_poses_msg.x)):
+            return
+        else:
+            current_onions_x = onions_poses_msg.x
+            current_onions_y = onions_poses_msg.y
+            current_onions_z = onions_poses_msg.z
+            target_location_x = current_onions_x[onion_index]
+            target_location_y = current_onions_y[onion_index]
+            target_location_z = current_onions_z[onion_index]    
     # print "target_location_x,target_location_y"+str((target_location_x,target_location_y))
     return
 
 def callback_onion_pick(color_indices_msg):
     global req, onion_index, bad_onion_index, initialized, num_onions, flag, good_onions, bad_onions
+    max_index = len(color_indices_msg.data)
     if (color_indices_msg.data[onion_index] == 0):
         req.model_name_1 = "good_onion_" + str(onion_index)
         print "Onion name set in IF as: ", req.model_name_1 
-        good_onions.append(onion_index)
+        if(onion_index is not max_index - 1):
+            onion_index = onion_index + 1
+        else: onion_index = -1
+        return
     else:
         req.model_name_1 = "bad_onion_" + str(onion_index)
         print "Onion name set in ELSE as: ", req.model_name_1 
@@ -717,7 +725,8 @@ def callback_onion_pick(color_indices_msg):
             rospy.sleep(0.01)
             detach_srv.call(req)
             num_onions = num_onions - 1
-            if onion_index == num_onions - 1:
+            if (onion_index == max_index - 1):
+                print("Onion index is: ",onion_index)
                 onion_index = -1
                 # bad_onion_index = 0
                 pnp.goto_home(0.3, goal_tol=0.01, orientation_tol=0.1)
@@ -726,17 +735,23 @@ def callback_onion_pick(color_indices_msg):
             else:
                 # bad_onion_index = bad_onion_index + 1
                 onion_index = onion_index + 1
+                print("Updated onion index is:", onion_index)
         ##############################################
     else:
-        print("Reached the end of onion list")
+        print("Num onions is zero!")
         return
 
 def callback_onion_roll(color_indices_msg):
     global req, onion_index, bad_onion_index, initialized, num_onions, flag, good_onions, bad_onions
+    max_index = len(color_indices_msg.data)
+
     if (color_indices_msg.data[onion_index] == 0):
         req.model_name_1 = "good_onion_" + str(onion_index)
         print "Onion name set in IF as: ", req.model_name_1 
-        good_onions.append(onion_index)
+        if(onion_index is not max_index - 1):
+            onion_index = onion_index + 1
+        else: onion_index = -1
+        return
     else:
         req.model_name_1 = "bad_onion_" + str(onion_index)
         print "Onion name set in ELSE as: ", req.model_name_1 
@@ -776,19 +791,21 @@ def callback_onion_roll(color_indices_msg):
             pnp.goto_bin()
             rospy.sleep(0.01)
             detach_srv.call(req)
-
-        if onion_index == num_onions - 1:
-            # onion_index = 0
-            # bad_onion_index = 0
-            pnp.goto_home(0.3, goal_tol=0.01, orientation_tol=0.1)
-            print("Reached the end of onion list")
-            return
-        else:
-            # bad_onion_index = bad_onion_index + 1
-            onion_index = onion_index + 1
+            num_onions = num_onions - 1
+            if (onion_index == max_index - 1):
+                print("Onion index is:", onion_index)
+                onion_index = -1
+                # bad_onion_index = 0
+                pnp.goto_home(0.3, goal_tol=0.01, orientation_tol=0.1)
+                print("Reached the end of onion list.")
+                return
+            else:
+                # bad_onion_index = bad_onion_index + 1
+                onion_index = onion_index + 1
+                print("Updated onion index is:",onion_index)
         ##############################################
     else:
-        print("Reached the end of onion list")
+        print("Num onions is zero!")
         return
 
 
