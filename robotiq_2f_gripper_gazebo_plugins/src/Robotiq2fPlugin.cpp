@@ -68,7 +68,9 @@ Robotiq2fPlugin::Robotiq2fPlugin()
 Robotiq2fPlugin::~Robotiq2fPlugin()
 {
 #if GAZEBO_MAJOR_VERSION < 9
-  gazebo::event::Events::DisconnectWorldUpdateBegin(this->updateConnection);
+	gazebo::event::Events::DisconnectWorldUpdateBegin(this->updateConnection);
+#else
+	this->updateConnection.reset();
 #endif
   this->rosNode->shutdown();
   this->dynReconRosNode->shutdown();
@@ -231,11 +233,19 @@ void Robotiq2fPlugin::Load(gazebo::physics::ModelPtr _parent,
       return;
     }
 
-    gazebo::physics::JointPtr joint = this->world->GetPhysicsEngine()->CreateJoint("fixed");
+    #if GAZEBO_MAJOR_VERSION > 7
+    gazebo::physics::JointPtr joint = this->world->Physics()->CreateJoint("fixed");
+    joint->SetName(joint_name_);
+    ignition::math::Pose3d jointOrigin(0.00,0.018,-0.006,0.00,-0.00,0.00);
+    joint->Load(parent_,child_,jointOrigin);
+    joint->Init();
+	#else
+	gazebo::physics::JointPtr joint = this->world->GetPhysicsEngine()->CreateJoint("fixed");
     joint->SetName(joint_name_);
     gazebo::math::Pose jointOrigin(0.00,0.018,-0.006,0.00,-0.00,0.00);
     joint->Load(parent_,child_,jointOrigin);
     joint->Init();
+    #endif
 
     elem = elem->GetNextElement("loop_joint");
 
@@ -642,8 +652,11 @@ void Robotiq2fPlugin::UpdatePIDControl(double _dt)
     double poseError = currentPose - targetPose;
 
     // Update the position PID.
-    double targetSpeed = gazebo::math::clamp(this->posePID[i].Update(poseError, _dt), -maxSpeed, maxSpeed);
-
+    #if GAZEBO_MAJOR_VERSION >= 9
+    double targetSpeed = ignition::math::clamp(this->posePID[i].Update(poseError, _dt), -maxSpeed, maxSpeed);
+	#else
+	double targetSpeed = gazebo::math::clamp(this->posePID[i].Update(poseError, _dt), -maxSpeed, maxSpeed);
+	#endif
     double velocityError = this->joints[i]->GetVelocity(0) - targetSpeed;
 
     double torque = this->velPID[i].Update(velocityError, _dt);
