@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 #include <math.h>
-
+#include <ignition/math.hh>
 #include <dynamic_reconfigure/server.h>
 #include <robotiq_2f_gripper_gazebo_plugins/Robotiq2fGripperConfig.h>
 
@@ -233,14 +233,14 @@ void Robotiq2fPlugin::Load(gazebo::physics::ModelPtr _parent,
       return;
     }
 
-    #if GAZEBO_MAJOR_VERSION > 7
+    #if GAZEBO_MAJOR_VERSION >= 9
     gazebo::physics::JointPtr joint = this->world->Physics()->CreateJoint("fixed");
     joint->SetName(joint_name_);
     ignition::math::Pose3d jointOrigin(0.00,0.018,-0.006,0.00,-0.00,0.00);
     joint->Load(parent_,child_,jointOrigin);
     joint->Init();
-	#else
-	gazebo::physics::JointPtr joint = this->world->GetPhysicsEngine()->CreateJoint("fixed");
+    #else
+    gazebo::physics::JointPtr joint = this->world->GetPhysicsEngine()->CreateJoint("fixed");
     joint->SetName(joint_name_);
     gazebo::math::Pose jointOrigin(0.00,0.018,-0.006,0.00,-0.00,0.00);
     joint->Load(parent_,child_,jointOrigin);

@@ -63,7 +63,7 @@ class PickAndPlace(object):
 
     moveit_commander.roscpp_initialize(joint_state_topic)
 
-    rospy.init_node('simple_pnp_gazebo',
+    rospy.init_node('simple_pnp',
                     anonymous=True, disable_signals=False)
 
     moveit_commander.roscpp_initialize(sys.argv)
@@ -222,10 +222,6 @@ def main():
     sleep(1.0)
 
     gripper_to_pos(50, 60, 200, False)    # GRIPPER TO POSITION 50
-    
-    # os.system('rosrun gazebo_ros_link_attacher attach.py')    # ATTACH CUBE AND SAWYER EEF
-
-    # sleep(1.0)
 
     pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 4 (TRAVEL TO PLACE DESTINATION)
                              0.665, 0.04, 0.15)
@@ -240,18 +236,16 @@ def main():
     pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 6 (PLACE)
                              0.665, 0.5, -0.055)
 
-    # os.system('rosrun gazebo_ros_link_attacher detach.py')    # DETACH CUBE AND SAWYER EEF
-
     gripper_to_pos(0, 60, 200, False)    # OPEN GRIPPER
 
     sleep(1.0)
 
-    pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561,    # GO TO WAYPOINT 7 (RETURN TO HOVER POS)
-                             0.665, 0.5, 0.12)
+    pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561, 0.665, 0.5, 0.12) # GO TO WAYPOINT 7 (RETURN TO HOVER POS)
     rospy.sleep(1.0)
-
-    delete_gazebo_models()
-    
+	
+    print("Reached goal!")
+    pnp.go_to_pose_goal(0.7071029, 0.7071057, 0.0012299, 0.0023561, 0.665, 0.5, 0.09) # GO TO WAYPOINT 8 (RETURN TO HOVER POS)
+    rospy.sleep(1.0)
 
   except rospy.ROSInterruptException:
     return
