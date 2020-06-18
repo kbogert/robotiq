@@ -265,7 +265,7 @@ class PickAndPlace(object):
                                     target_location_y + 0.02, #accounting for tolerance error
                                     current_pose.position.z - 0.075, #This is where we dip
                                     allow_replanning, planning_time)
-            rospy.sleep(0.05)
+            # rospy.sleep(0.05)
             
             print "Successfully dipped! z pos: ", current_pose.position.z
             
@@ -304,7 +304,7 @@ class PickAndPlace(object):
         allow_replanning = True
         planning_time = 5
         waiting = self.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x,
-                                    target_location_y + 0.1, # Going to hover location .1 from the onion
+                                    target_location_y + 0.15, # Going to hover location .15 from the onion pose y
                                     current_pose.position.z,
                                     allow_replanning, planning_time)
         rospy.sleep(0.05)
@@ -326,14 +326,24 @@ class PickAndPlace(object):
         current_pose = group.get_current_pose().pose
         allow_replanning = True
         waiting = False
+<<<<<<< HEAD
         planning_time = 0.025
+=======
+        attempts = 0
+        planning_time = MOTION_SAMPLE_TIME
+>>>>>>> f3d72034df61da96ad488c3d046576d67106f671
         print "Current z pose: ",current_pose.position.z
         while not waiting:
             waiting = self.go_to_pose_goal(q[0], q[1], q[2], q[3], target_location_x,
                                     current_pose.position.y, current_pose.position.z + 0.4,
                                     allow_replanning, planning_time)
+            attempts += 1
             rospy.sleep(0.02)
-        print "Successfully lifted gripper to z: ",current_pose.position.z
+            if attempts >= 4:
+                print "Moving on"
+                break
+        if attempts < 4:
+            print "Successfully lifted gripper to z: ",current_pose.position.z
 
         return True
                        
@@ -622,10 +632,11 @@ flag = False
 def callback_poses(onions_poses_msg):
     global req, target_location_x, target_location_y, target_location_z, onion_index, num_onions
     if "good" in req.model_name_1:
-        # print("I'm waiting for a bad onion!")
+        print("I'm waiting for a bad onion!")
         return
     if(onion_index == -1):
         print("No more onions to sort!")
+        rospy.signal_shutdown("Finished all the work")
         return
     else:
         if(onion_index == len(onions_poses_msg.x)):
