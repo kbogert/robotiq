@@ -10,13 +10,13 @@
         <technique sid="common">
           <phong>
             <ambient>
-                 <color>0.007843 0.007843 0.007843 1</color>
+                 <color>0 0 0.007843 1</color>
             </ambient>
             <diffuse>
-                 <color>0.08 0.08 0.08 1</color>
+                 <color>0 0 0.8 1</color>
             </diffuse>
             <specular>
-                 <color>0.08 0.08 0.08 1</color>
+                 <color>0 0 0.08 1</color>
             </specular>
             <shininess>
                  <float>0.312500</float>

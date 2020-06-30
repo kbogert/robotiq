@@ -14,9 +14,7 @@
         <geometry>
           <mesh filename="package://robotiq_2f_85_gripper_visualization/meshes/visual/robotiq_arg2f_85_outer_knuckle.dae" scale="0.001 0.001 0.001"/>
         </geometry>
-        <material name="">
-          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-        </material>
+        <material name="blue"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -39,9 +37,7 @@
         <geometry>
           <mesh filename="package://robotiq_2f_85_gripper_visualization/meshes/visual/robotiq_arg2f_85_outer_finger.dae" scale="0.001 0.001 0.001"/>
         </geometry>
-        <material name="">
-          <color rgba="0.1 0.1 0.1 1" />
-        </material>
+        <material name="blue"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -64,9 +60,7 @@
         <geometry>
           <mesh filename="package://robotiq_2f_85_gripper_visualization/meshes/visual/robotiq_arg2f_85_inner_knuckle.dae" scale="0.001 0.001 0.001"/>
         </geometry>
-        <material name="">
-          <color rgba="0.1 0.1 0.1 1" />
-        </material>
+        <material name="blue"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -89,9 +83,7 @@
         <geometry>
           <mesh filename="package://robotiq_2f_85_gripper_visualization/meshes/visual/robotiq_arg2f_85_inner_finger.dae" scale="0.001 0.001 0.001"/>
         </geometry>
-        <material name="">
-          <color rgba="0.1 0.1 0.1 1" />
-        </material>
+        <material name="blue"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -110,9 +102,7 @@
         <geometry>
           <box size="0.022 0.00635 0.0375"/>
         </geometry>
-        <material name="">
-          <color rgba="0.9 0.9 0.9 1" />
-        </material>
+        <material name="blue"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -156,9 +146,7 @@
         <geometry>
           <cylinder length="0.02" radius="0.0025"/>
         </geometry>
-        <material name="">
-          <color rgba="0.1 0.1 0.1 1" />
-        </material>
+        <material name="blue"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
