@@ -651,9 +651,9 @@ flag = False
 
 def callback_poses(onions_poses_msg):
     global req, target_location_x, target_location_y, target_location_z, onion_index, num_onions
-    if "good" in req.model_name_1:
+#    if "good" in req.model_name_1:
         # print("I'm waiting for a bad onion!")
-        return
+#        return
     if(onion_index == -1):
         print("No more onions to sort!")
         return
@@ -673,17 +673,19 @@ def callback_poses(onions_poses_msg):
 def callback_onion_pick(color_indices_msg):
     global req, onion_index, bad_onion_index, initialized, num_onions, flag, good_onions, bad_onions
     max_index = len(color_indices_msg.data)
+    onion_is_good = True
     if (color_indices_msg.data[onion_index] == 0):
         req.model_name_1 = "good_onion_" + str(onion_index)
         print "Onion name set in IF as: ", req.model_name_1 
-        if(onion_index is not max_index - 1):
-            onion_index = onion_index + 1
-        else: onion_index = -1
-        return
+#        if(onion_index is not max_index - 1):
+#            onion_index = onion_index + 1
+#        else: onion_index = -1
+#        return
     else:
         req.model_name_1 = "bad_onion_" + str(onion_index)
         print "Onion name set in ELSE as: ", req.model_name_1 
         bad_onions.append(onion_index)
+        onion_is_good = False
     # initialized = True
 
     # attach and detach service
@@ -720,8 +722,11 @@ def callback_onion_pick(color_indices_msg):
             pnp.view(0.3)
             rospy.sleep(0.01)
             pnp.rotategripper(0.3)
-            rospy.sleep(0.01)
-            pnp.goto_bin()
+            rospy.sleep(0.1)
+            if onion_is_good:
+                pnp.go_to_pose_goal(q[0], q[1], q[2], q[3], .7255, 0.5007, 0.14629)
+            else:
+                pnp.goto_bin()
             rospy.sleep(0.01)
             detach_srv.call(req)
             num_onions = num_onions - 1
